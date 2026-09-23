@@ -1,0 +1,42 @@
+workflowExternalId: wf_icapi_data_pipeline
+version: '1'
+workflowDefinition:
+  tasks:
+  # Step 1: build the asset hierarchy (must exist before contextualization)
+  - externalId: create_asset_hierarchy_task
+    type: transformation
+    parameters:
+      transformation:
+        # ASSUMPTION: must match externalId inside create_asset_hierarchy.Transformation.yaml
+        externalId: create_asset_hierarchy
+        concurrencyPolicy: fail
+    retries: 3
+    timeout: 3600
+    onFailure: abortWorkflow
+
+  # Step 2: link time series to assets (depends on hierarchy)
+  - externalId: contextualize_ts_assets_task
+    type: transformation
+    parameters:
+      transformation:
+        # ASSUMPTION: must match externalId inside contextualize_ts_assets.Transformation.yaml
+        externalId: contextualize_ts_assets
+        concurrencyPolicy: fail
+    retries: 3
+    timeout: 3600
+    onFailure: abortWorkflow
+    dependsOn:
+      - externalId: create_asset_hierarchy_task
+
+  # Step 3: extract datapoints into the contextualized time series
+  - externalId: icapi_datapoints_extractor_task
+    type: function
+    parameters:
+      function:
+        externalId: icapi_datapoints_extractor
+        data: { "hours": 1 }
+    retries: 3
+    timeout: 3600
+    onFailure: abortWorkflow
+    dependsOn:
+      - externalId: contextualize_ts_assets_task
